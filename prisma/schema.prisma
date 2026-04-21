@@ -1,0 +1,62 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  username  String   @unique
+  email     String   @unique
+  password  String
+  balance   Float    @default(10000)
+  createdAt DateTime @default(now())
+  bets      Bet[]
+  parlays   Parlay[]
+}
+
+model Bet {
+  id              String     @id @default(cuid())
+  userId          String
+  user            User       @relation(fields: [userId], references: [id])
+  eventId         String
+  sport           String
+  homeTeam        String
+  awayTeam        String
+  commenceTime    DateTime
+  betType         String
+  selection       String
+  line            Float?
+  odds            Int
+  stake           Float
+  potentialPayout Float
+  status          String     @default("pending")
+  isLive          Boolean    @default(false)
+  createdAt       DateTime   @default(now())
+  settledAt       DateTime?
+  parlayLeg       ParlayLeg?
+}
+
+model Parlay {
+  id              String      @id @default(cuid())
+  userId          String
+  user            User        @relation(fields: [userId], references: [id])
+  legs            ParlayLeg[]
+  combinedOdds    Int
+  stake           Float
+  potentialPayout Float
+  status          String      @default("pending")
+  createdAt       DateTime    @default(now())
+  settledAt       DateTime?
+}
+
+model ParlayLeg {
+  id       String @id @default(cuid())
+  parlayId String
+  parlay   Parlay @relation(fields: [parlayId], references: [id])
+  betId    String @unique
+  bet      Bet    @relation(fields: [betId], references: [id])
+}
