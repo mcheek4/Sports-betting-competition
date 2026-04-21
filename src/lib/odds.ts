@@ -105,10 +105,17 @@ export function getEventMarkets(event: OddsEvent): {
   };
 }
 
-export async function fetchOdds(sport: string, isLive = false): Promise<OddsEvent[]> {
+export interface OddsFetchResult {
+  events: OddsEvent[];
+  isMock: boolean;
+  requestsRemaining?: number;
+  error?: string;
+}
+
+export async function fetchOdds(sport: string, isLive = false): Promise<OddsFetchResult> {
   const apiKey = process.env.ODDS_API_KEY;
   if (!apiKey || apiKey === "YOUR_ODDS_API_KEY_HERE") {
-    return getMockOdds(sport);
+    return { events: getMockOdds(sport), isMock: true };
   }
 
   const eventStatus = isLive ? "inprogress" : "upcoming";
@@ -116,10 +123,23 @@ export async function fetchOdds(sport: string, isLive = false): Promise<OddsEven
 
   try {
     const res = await fetch(url, { next: { revalidate: 60 } });
-    if (!res.ok) return [];
-    return res.json();
+    const requestsRemaining = Number(res.headers.get("x-requests-remaining") ?? -1);
+
+    if (res.status === 401) {
+      return { events: [], isMock: false, error: "Invalid API key — check ODDS_API_KEY in .env" };
+    }
+    if (res.status === 422) {
+      // Sport not currently available (off-season)
+      return { events: [], isMock: false, requestsRemaining };
+    }
+    if (!res.ok) {
+      return { events: [], isMock: false, error: `API error ${res.status}` };
+    }
+
+    const events: OddsEvent[] = await res.json();
+    return { events, isMock: false, requestsRemaining };
   } catch {
-    return [];
+    return { events: [], isMock: false, error: "Network error fetching odds" };
   }
 }
 

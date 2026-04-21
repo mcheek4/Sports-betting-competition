@@ -6,10 +6,17 @@ import { OddsEvent, SPORTS } from "@/lib/odds";
 
 type Tab = "upcoming" | "live";
 
+interface OddsResponse {
+  events: OddsEvent[];
+  isMock: boolean;
+  requestsRemaining?: number;
+  error?: string;
+}
+
 export default function GamesPage() {
   const [tab, setTab] = useState<Tab>("upcoming");
   const [sport, setSport] = useState("all");
-  const [events, setEvents] = useState<OddsEvent[]>([]);
+  const [response, setResponse] = useState<OddsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
@@ -19,10 +26,10 @@ export default function GamesPage() {
       const params = new URLSearchParams({ sport, live: String(tab === "live") });
       const res = await fetch(`/api/odds?${params}`);
       const data = await res.json();
-      setEvents(Array.isArray(data) ? data : []);
+      setResponse(data);
       setLastUpdated(new Date());
     } catch {
-      setEvents([]);
+      setResponse({ events: [], isMock: false, error: "Network error" });
     } finally {
       setLoading(false);
     }
@@ -39,27 +46,50 @@ export default function GamesPage() {
     return () => clearInterval(interval);
   }, [tab, loadOdds]);
 
+  const events = response?.events ?? [];
+  const isMock = response?.isMock ?? true;
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-white">Games</h1>
-          {lastUpdated && (
-            <p className="text-xs text-gray-500 mt-0.5">
-              Updated {lastUpdated.toLocaleTimeString()}
-              {tab === "live" && " · auto-refreshes every 30s"}
-            </p>
-          )}
+          <div className="flex items-center gap-3 mt-0.5">
+            {lastUpdated && (
+              <p className="text-xs text-gray-500">
+                Updated {lastUpdated.toLocaleTimeString()}
+                {tab === "live" && " · auto-refreshes every 30s"}
+              </p>
+            )}
+            {!loading && response && (
+              isMock ? (
+                <span className="text-xs bg-yellow-900/50 text-yellow-400 border border-yellow-800 px-2 py-0.5 rounded-full">
+                  Demo odds — add ODDS_API_KEY for real lines
+                </span>
+              ) : (
+                <span className="text-xs bg-green-900/50 text-green-400 border border-green-800 px-2 py-0.5 rounded-full flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block" />
+                  Live odds
+                  {response.requestsRemaining != null && response.requestsRemaining >= 0 && (
+                    <span className="text-green-600 ml-1">{response.requestsRemaining} calls left</span>
+                  )}
+                </span>
+              )
+            )}
+            {response?.error && (
+              <span className="text-xs bg-red-900/50 text-red-400 border border-red-800 px-2 py-0.5 rounded-full">
+                {response.error}
+              </span>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={loadOdds}
-            disabled={loading}
-            className="px-3 py-1.5 text-xs rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-600 transition-colors disabled:opacity-50"
-          >
-            {loading ? "Loading..." : "Refresh"}
-          </button>
-        </div>
+        <button
+          onClick={loadOdds}
+          disabled={loading}
+          className="px-3 py-1.5 text-xs rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-600 transition-colors disabled:opacity-50 self-start sm:self-auto"
+        >
+          {loading ? "Loading..." : "Refresh"}
+        </button>
       </div>
 
       {/* Tab switcher */}
